@@ -9,6 +9,22 @@ Building a project to call APPL stock data, store in SQL Server, and then deploy
   - **Figure 1:** Candlestick chart and Log Volume chart showing the last 6.5 trading hours (5-min bins, gaps removed) of data, Close Price (£) vs Date + Time. Title shows the Eastern Time value of the final data point in     the final bin. Positive changes in Close Price are green, negatives are red.
   - **Figure 2:** Colored line chart for last 7 calendar days (5-min bins, gaps removed), Close Price (£) vs Date + Time. Title shows the Eastern Time value of the final data point in the final bin. Positive changes in        Close Price are green, negatives are red. Grey dashed lines for breaks within days.
 
+    Yahoo Finance API (yfinance)
+                  ↓
+    Data Cleaning & Transformation
+   (timezone normalization, GBP conversion)
+                  ↓
+       Duplicate Filtering Logic
+   (compare against MAX(TradeDate))
+                  ↓
+        SQL Server (StockDB)
+                  ↓
+      Strict Time-Window Retrieval
+       (Last 24h / Last 7 Days)
+                  ↓
+          Visualization Layer
+       (mplfinance & matplotlib)
+
 ## What Works
 - SQL Server integration
 - Data ingestion and storage (avoids duplicates)
