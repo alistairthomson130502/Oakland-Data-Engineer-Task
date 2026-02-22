@@ -2,12 +2,12 @@
 Building a project to call APPL stock data, store in SQL Server, and then deploy using a local deployment.
 
 ## Architecture
-- Python script fetches Apple stock data from Yahoo Finance (`yfinance`) in 1m intervals over the past 7 days. The data is then put into 5m bins for visual clarity in the figures described below. (Python 3.12 was used to    create this project, so ensure that your version of Python is 3.12 or above.)
+- Python script fetches Apple stock data from Yahoo Finance (`yfinance`) in 1m intervals over the past 7 days. The data is then put into 5m bins for visual clarity in the figures described below. (Python 3.12.12 was used to create this project, so ensure that your version of Python is 3.12.12 or above.)
 - Converts USD to GBP using latest exchange rate.
 - Inserts **only new data** into SQL Server (`StockDB`).
 - Generates:
-  - **Figure 1:** Candlestick chart and Log Volume chart showing the last 6.5 trading hours (5-min bins, gaps removed) of data, Close Price (£) vs Date + Time. Title shows the Eastern Time value of the final data point in     the final bin. Positive changes in Close Price are green, negatives are red.
-  - **Figure 2:** Colored line chart for last 7 calendar days (5-min bins, gaps removed), Close Price (£) vs Date + Time. Title shows the Eastern Time value of the final data point in the final bin. Positive changes in        Close Price are green, negatives are red. Grey dashed lines for breaks within days.
+  - **Figure 1:** Candlestick chart and Log Volume chart showing the last 6.5 trading hours (5-min bins, gaps removed) of data, Close Price (£) vs Date + Time. Title shows the Eastern Time value of the final data point in the final bin. Positive changes in Close Price are green, negatives are red.
+  - **Figure 2:** Colored line chart for last 7 calendar days (5-min bins, gaps removed), Close Price (£) vs Date + Time. Title shows the Eastern Time value of the final data point in the final bin. Positive changes in Close Price are green, negatives are red. Grey        dashed lines for breaks within days.
 
     Yahoo Finance API (yfinance)
                   ↓
