@@ -30,7 +30,8 @@ def fetch_apple_data(days=7, interval="1m"):
     df.index = df.index.tz_localize(None)
     return df.sort_index()
 
-# ------------------ USD → GBP ------------------
+# ------------------ USD → GBP ------------------ REMOVE THIS FUNCTION IF YOU WANT TO KEEP PRICES IN USD. 
+# Note: The conversion uses the latest GBP/USD exchange rate, so the prices will reflect the most recent rate at the time you run the script. Currently, there is no historical exchange rate conversion for each row.
 def convert_usd_to_gbp(df):
     fx = yf.Ticker("GBPUSD=X").history(period="7d")
     fx.index = fx.index.tz_localize(None)
@@ -151,29 +152,41 @@ def plot_candlestick_last_hours(df, hours=6.5):
     df = df.sort_index()
     minutes_per_bin = 5
     total_bins_needed = int(hours * 60 / minutes_per_bin)
-    last_time = df.index.max().replace(second=0, microsecond=0)
-    remainder = last_time.minute % 5
-    last_bin_end = last_time - pd.Timedelta(minutes=remainder) + pd.Timedelta(minutes=4)
-    bin_starts = [last_bin_end - pd.Timedelta(minutes=minutes_per_bin-1) - pd.Timedelta(minutes=5*i)
-                  for i in reversed(range(total_bins_needed))]
-
+    trading_days = df.index.normalize().unique()
     binned_rows = []
-    for bin_start in bin_starts:
-        bin_end = bin_start + pd.Timedelta(minutes=minutes_per_bin-1)
-        df_bin = df[(df.index >= bin_start) & (df.index <= bin_end)]
-        if len(df_bin) == minutes_per_bin:
-            binned_rows.append({
-                "Open": df_bin["Open"].iloc[0],
-                "High": df_bin["High"].max(),
-                "Low": df_bin["Low"].min(),
-                "Close": df_bin["Close"].iloc[-1],
-                "Volume": df_bin["Volume"].sum(),
-                "BinStart": bin_start
-            })
+    cum_bins = 0
 
-    if not binned_rows:
-        print("No full bins found")
-        return
+    for day in reversed(trading_days):
+        day_start = pd.Timestamp.combine(day, time(9,30))
+        day_end = pd.Timestamp.combine(day, time(16,0))
+        df_day = df[(df.index >= day_start) & (df.index <= day_end)]
+        if df_day.empty:
+            continue
+
+        last_time = df_day.index.max().replace(second=0, microsecond=0)
+        remainder = last_time.minute % 5
+        last_bin_end = last_time - pd.Timedelta(minutes=remainder) + pd.Timedelta(minutes=4)
+
+        bin_starts = [last_bin_end - pd.Timedelta(minutes=minutes_per_bin-1) - pd.Timedelta(minutes=5*i)
+                    for i in reversed(range(int(len(df_day)/minutes_per_bin)))]
+
+        for bin_start in reversed(bin_starts):
+            bin_end = bin_start + pd.Timedelta(minutes=minutes_per_bin-1)
+            df_bin = df_day[(df_day.index >= bin_start) & (df_day.index <= bin_end)]
+            if len(df_bin) == minutes_per_bin:
+                binned_rows.append({
+                    "Open": df_bin["Open"].iloc[0],
+                    "High": df_bin["High"].max(),
+                    "Low": df_bin["Low"].min(),
+                    "Close": df_bin["Close"].iloc[-1],
+                    "Volume": df_bin["Volume"].sum(),
+                    "BinStart": bin_start
+                })
+                cum_bins += 1
+                if cum_bins >= total_bins_needed:
+                    break
+        if cum_bins >= total_bins_needed:
+            break
 
     df_binned = pd.DataFrame(binned_rows).set_index("BinStart").sort_index()
     mc = mpf.make_marketcolors(up='green', down='red', edge='inherit', wick='inherit', volume='in')
@@ -181,21 +194,21 @@ def plot_candlestick_last_hours(df, hours=6.5):
 
     fig, axes = mpf.plot(
         df_binned, type='candle', style=s, volume=True, volume_yscale='log',
-        title="", ylabel="Close Price (£)", ylabel_lower="Volume (Log)",
+        title="", ylabel="Close Price (£)", ylabel_lower="Volume (Log)", # -- Remember we converted to GBP earlier, so we update the label accordingly. If you removed the conversion function, change this back to "Close Price ($)".
         datetime_format="%d/%m %H:%M", xrotation=45,
         figscale=1.5, returnfig=True, tight_layout=False
     )
 
     fig.subplots_adjust(top=0.88, bottom=0.15)
 
-    # Include the "as of" date/time in the title using end of final 5-min bin
+    # Include the "as of" date/time in the title using end of final 5-min bin (as that is the last timestamp that reflects a complete 5-minute period)
     last_bin_end_for_title = df_binned.index.max() + pd.Timedelta(minutes=4)  # last bin covers 5 mins
     as_of = last_bin_end_for_title.strftime("%d/%m/%Y %H:%M")
-    fig.suptitle(f"AAPL Candlestick + Log Volume (Last {hours} Trading Hours) as of {as_of} (ET)",
+    fig.suptitle(f"AAPL Candlestick + Log Volume (Last {hours} Trading Hours) as of {as_of} (ET)", # -- Eastern Time is the timezone of the NYSE where AAPL is traded, so we keep that in the title even if your local timezone is different.
              fontsize=16, fontweight='bold')
 
     fig.text(0.5, 0.02, "Date & Time", ha='center', fontsize=14, fontweight='bold')
-    axes[0].set_ylabel("Close Price (£)", fontsize=14, fontweight='bold')
+    axes[0].set_ylabel("Close Price (£)", fontsize=14, fontweight='bold') # -- Remember we converted to GBP earlier, so we update the label accordingly. If you removed the conversion function, change this back to "Close Price ($)".
     axes[1].set_ylabel("Volume (Log)")
     fig.show()
 
@@ -270,13 +283,13 @@ def plot_colored_line_7d_trading_labels(df, interval_minutes=5):
     as_of = last_bin_end.strftime("%d/%m/%Y %H:%M")
 
     ax.set_title(
-        f"AAPL Price (Past 7 Days) as of {as_of} (ET)",
+        f"AAPL Price (Past 7 Days) as of {as_of} (ET)", # -- Eastern Time is the timezone of the NYSE where AAPL is traded, so we keep that in the title even if your local timezone is different.
         fontsize=16,
         fontweight='bold'
     )
 
     ax.set_xlabel("Date & Time", fontsize=14, fontweight='bold')
-    ax.set_ylabel("Close Price (£)", fontsize=14, fontweight='bold')
+    ax.set_ylabel("Close Price (£)", fontsize=14, fontweight='bold') # -- Remember we converted to GBP earlier, so we update the label accordingly. If you removed the conversion function, change this back to "Close Price ($)".
     ax.grid(True, linestyle='--', alpha=0.5)
 
     fig.tight_layout()
@@ -288,18 +301,27 @@ if __name__ == "__main__": # -- This ensures the code only runs when this script
     print("Fetching data...")
     df_full = fetch_apple_data(days=7, interval="1m")  # Update the past 7 days worth of data using 1-minute intervals
 
-    print("Converting to GBP...")
-    df_full = convert_usd_to_gbp(df_full)
-
     print("Inserting into SQL...")
     insert_stock_data(df_full)
 
+
+    # Figure 1: Last 6.5 trading hours candlestick with log volume
     print("Retrieving last 24 hours for Figure 1...")
     df_24h = get_stock_data_last_24h()
+
+    print("Converting to GBP for display...") # -- This is optional. If you want to keep prices in USD, simply comment out both this line and the next line, and update the y-axis labels in the plotting functions accordingly.
+    df_24h = convert_usd_to_gbp(df_24h)
+
     print("Plotting candlestick (last 6.5 trading hours)...")
     plot_candlestick_last_hours(df_24h, hours=6.5)
 
+
+    # Figure 2: Colored line over last 7 days with vertical lines for new trading days
     print("Retrieving last 7 days for Figure 2...")
-    df_7d = get_stock_data_last_7days()
+    df_7d = get_stock_data_last_7days() 
+
+    print("Converting to GBP for display...") # -- This is optional. If you want to keep prices in USD, simply comment out both this line and the next line, and update the y-axis labels in the plotting functions accordingly.
+    df_7d = convert_usd_to_gbp(df_7d)
+
     print("Plotting colored line over last 7 days...")
     plot_colored_line_7d_trading_labels(df_7d, interval_minutes=5)
