@@ -17,14 +17,14 @@ End-to-end data pipeline that ingests high-frequency AAPL stock data, stores it 
 
 ## Architecture
 
-- Python script fetches Apple stock data from Yahoo Finance (`yfinance`) in 1m intervals over the past 7 days.
-- Data is only inserted into the SQL Server StockDB.dbo.Stocks table if there is **new data**. To do this, the `MAX(TradeDate)` within the table is used to compare with the 'trade dates' pulled over the past 7 days. If no rows are **newer** than `MAX(TradeDate)`, no data is inserted and the script continues. Since yfinance generates a maximum of 2370 rows of data (7 trading days * 6.5 trading hours / trading day * 60 minutes / hour), the processing power required is low. This is done instead of checking if the market is open as yfinance only generates new data when the markets are open for the stock of choice. So, checking if the current time is during market hours is redundant.
+- Python script fetches Apple stock data from Yahoo Finance (`yfinance`) in 1m intervals over the past 7 trading days.
+- Data is only inserted into the SQL Server StockDB.dbo.Stocks table if there is **new data**. To do this, the `MAX(TradeDate)` within the table is used to compare with the 'trade dates' pulled over the past 7 trading days. If no rows are **newer** than `MAX(TradeDate)`, no data is inserted and the script continues. Since yfinance generates a maximum of 2370 rows of data (7 trading days * 6.5 trading hours / trading day * 60 minutes / hour), the processing power required is low. This is done instead of checking if the market is open as yfinance only generates new data when the markets are open for the stock of choice. So, checking if the current time is during market hours is redundant.
 - 5-minute bins are used for visual clarity and reduces noise from 1-minute trading data of a high-volume stock.
 - Converts USD to GBP using latest exchange rate. However, the `TradeDate` data is stored using Eastern Time. The user can remove the USD to GBP conversion, this is commented frequently in the Python script.
 - Inserts **only new data** into SQL Server (`StockDB`).
 - Generates:
   - **Figure 1:** Candlestick chart and Log Volume chart showing the last 6.5 trading hours (5-min bins, gaps removed) of data, Close Price (£) vs Date + Time. Title shows the Eastern Time value of the final data point in the final bin. Positive changes in Close Price are green, negatives are red. Incomplete bins are not used.
-  - **Figure 2:** Colored line chart for last 7 calendar days (5-min bins, gaps removed), Close Price (£) vs Date + Time. Title shows the Eastern Time value of the final data point in the final bin. Positive changes in Close Price are green, negatives are red. Grey dashed lines for breaks within days. Incomplete bins are not used.
+  - **Figure 2:** Colored line chart for last 7 **calendar** days (5-min bins, gaps removed), Close Price (£) vs Date + Time. Title shows the Eastern Time value of the final data point in the final bin. Positive changes in Close Price are green, negatives are red. Grey dashed lines for breaks within days. Incomplete bins are not used.
 
 
 ### Data Flow
@@ -33,7 +33,7 @@ End-to-end data pipeline that ingests high-frequency AAPL stock data, stores it 
 Yahoo Finance API (yfinance)
 ↓
 Data Extraction Layer
-  - 1-minute intervals, last 7 days
+  - 1-minute intervals, last 7 trading days
 ↓
 Transformation Layer
   - Timezone normalization (Eastern Time)
@@ -80,7 +80,7 @@ Primary Key: ID (`TradeDate` and `Symbol` are treated as unique for the dbo.Inse
 - Data ingestion and storage (avoids duplicates)
 - Candlestick and line chart visualization
   - Strict 6.5 hour data range for candlestick
-  - Strict 7-day data range for line chart
+  - Strict 7 calendar day data range for line chart
   - 5min interval bins, without including 'partial' bins. i.e. running the report at 12:27 ignores 12:25-12:27, as their bin is incomplete.
 - For figure 2, grey dashed lines for breaks between trading days.
 
@@ -95,8 +95,8 @@ Primary Key: ID (`TradeDate` and `Symbol` are treated as unique for the dbo.Inse
 - Visualization layer does not currently support stable real-time streaming updates due to `mplfinance` handling of missing intraday intervals (NaN propagation during redraw events).  
   → Future improvement: migrate to Plotly Dash or a front-end dashboard architecture to support live updates.
 - Automation/CI-CD not yet implemented.
-- Only the past 7 days are gathered as a maximum, due to yfinance being limited with 1m intervals of data over the last 7 days.
-- Figure 1 is missing the same grey dashed line, attempting to create one caused the data to be offset. From what I could find, mplfinance maps the dates to integer positions and I couldn't find a way to map it to the       correct position, causing a chasm between the data and the x-axis labels.
+- Only the past 7 trading days are gathered as a maximum, due to yfinance being limited with 1m intervals of data over the last 7 trading days.
+- Figure 1 is missing the same grey dashed line, attempting to create one caused the data to be offset. From what I could find, mplfinance maps the dates to integer positions and I couldn't find a way to map it to the correct position, causing a chasm between the data and the x-axis labels.
 - Ideally, multiple graphs could be selected by the user (similarly to yahoo's stocks website) so they could observe longer-term trends.
 - Timestamps are currently naive but labeled as Eastern Time (ET) to reflect NYSE trading hours. With more time, I would make them timezone-aware using 'pytz' or 'zoneinfo' to handle daylight saving and multi-timezone display correctly
 - Add logging, error handling, and retry logic for network/API issues.
