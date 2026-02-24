@@ -1,3 +1,4 @@
+# ------------------ IMPORT PYTHON MODULES ------------------
 import yfinance as yf
 import pyodbc
 import sys
@@ -6,8 +7,8 @@ import matplotlib.pyplot as plt
 import mplfinance as mpf
 from datetime import timedelta, time, datetime
 
-SERVER = "localhost\\SQLEXPRESS"
-DATABASE = "StockDB"
+SERVER = "localhost\\SQLEXPRESS" # -- Update with your actual server name if different
+DATABASE = "StockDB" # -- Update with your actual database name if different
 
 # ------------------ DB CONNECTION ------------------
 def get_connection():
@@ -203,59 +204,89 @@ def plot_colored_line_7d_trading_labels(df, interval_minutes=5):
     if df.empty:
         print("No data to plot.")
         return
-    start_dt = df.index.min()
-    end_dt = df.index.max()
-    trading_days = pd.date_range(start=start_dt.date(), end=end_dt.date(), freq='B')
-    trading_index = []
-    for day in trading_days:
-        day_start = pd.Timestamp.combine(day, time(9,30))
-        day_end = pd.Timestamp.combine(day, time(16,0))
-        trading_index.extend(pd.date_range(start=day_start, end=day_end, freq=f"{interval_minutes}min"))
-    trading_index = pd.DatetimeIndex([t for t in trading_index if start_dt <= t <= end_dt])
-    df_full = df.reindex(trading_index)
-    df_full['Volume'] = df_full['Volume'].fillna(0)
-    df_plot = df_full.dropna(subset=['Close']).reset_index().rename(columns={'index':'DateTime'})
+
+    df = df.sort_index()
+
+    # STEP 1: Build STRICT 5-minute bins
+    grouped = df.resample(f"{interval_minutes}min", label='left', closed='left')
+
+    df_5m = grouped.agg({
+        "Open": "first",
+        "High": "max",
+        "Low": "min",
+        "Close": "last",
+        "Volume": "sum"
+    })
+
+    # Count rows per bin
+    counts = grouped.size()
+
+    # Keep only full bins (exactly 5 one-minute rows)
+    df_5m = df_5m[counts == interval_minutes]
+
+    if df_5m.empty:
+        print("No full 5-minute bins found.")
+        return
+
+    df_5m = df_5m.dropna(subset=["Close"])
+
+    # STEP 2: Plot continuous colored line 
+    df_plot = df_5m.reset_index()
+    df_plot = df_plot.rename(columns={df_plot.columns[0]: "DateTime"}) #-- After re-sampling, the datetime column is unnamed, so we rename it to "DateTime"
     x_cont = list(range(len(df_plot)))
-    prev_x, prev_y = None, None
+
     fig, ax = plt.subplots(figsize=(12,6))
+
+    prev_x, prev_y = None, None
     for i, row in df_plot.iterrows():
         x, y = x_cont[i], row['Close']
         if prev_x is not None:
             color = 'green' if y >= prev_y else 'red'
             ax.plot([prev_x, x], [prev_y, y], color=color)
         prev_x, prev_y = x, y
-    
-    # Grey dashed lines for new trading days
+
+    # STEP 3: Vertical lines for new trading days
+    trading_days = df_plot['DateTime'].dt.date.unique()
+
     for day in trading_days:
-        day_start = pd.Timestamp.combine(day, time(9,30))
+        day_start = pd.Timestamp.combine(pd.Timestamp(day), time(9,30))
         idx = df_plot.index[df_plot['DateTime'] >= day_start]
         if not idx.empty:
-            x_pos = x_cont[idx[0]]
-            ax.axvline(x=x_pos, color='grey', linestyle='--', alpha=0.5)
-    
-    # X-axis labels every hour
+            ax.axvline(x=idx[0], color='grey', linestyle='--', alpha=0.5)
+
+    # STEP 4: Hourly x-axis labels
     tick_locs, tick_labels = [], []
-    for i, row in df_plot.iterrows():
-        if i % (60//interval_minutes) == 0:
-            tick_locs.append(x_cont[i])
-            tick_labels.append(row['DateTime'].strftime("%d/%m %H:%M"))
+    bins_per_hour = 60 // interval_minutes
+
+    for i in range(0, len(df_plot), bins_per_hour):
+        tick_locs.append(i)
+        tick_labels.append(df_plot.loc[i, 'DateTime'].strftime("%d/%m %H:%M"))
+
     ax.set_xticks(tick_locs)
     ax.set_xticklabels(tick_labels, rotation=45)
 
-    # Title with end date matching Figure 1 format
-    as_of_2 = end_dt.strftime("%d/%m/%Y %H:%M")
-    ax.set_title(f"AAPL Price (Past 7 Days) as of {as_of_2} (ET)", fontsize=16, fontweight='bold')
+    # STEP 5: Title timestamp = end of last FULL bin (not just last timestamp in DB)
+    last_bin_end = df_5m.index.max() + pd.Timedelta(minutes=interval_minutes - 1)
+    as_of = last_bin_end.strftime("%d/%m/%Y %H:%M")
+
+    ax.set_title(
+        f"AAPL Price (Past 7 Days) as of {as_of} (ET)",
+        fontsize=16,
+        fontweight='bold'
+    )
 
     ax.set_xlabel("Date & Time", fontsize=14, fontweight='bold')
     ax.set_ylabel("Close Price (£)", fontsize=14, fontweight='bold')
     ax.grid(True, linestyle='--', alpha=0.5)
+
     fig.tight_layout()
     plt.show()
 
-# ------------------ MAIN ------------------
-if __name__ == "__main__":
+
+# ------------------ MAIN SELECT ------------------
+if __name__ == "__main__": # -- This ensures the code only runs when this script is executed directly, not when imported as a module
     print("Fetching data...")
-    df_full = fetch_apple_data(days=7, interval="5m")  # 5-minute intervals for Figure 2
+    df_full = fetch_apple_data(days=7, interval="1m")  # Update the past 7 days worth of data using 1-minute intervals
 
     print("Converting to GBP...")
     df_full = convert_usd_to_gbp(df_full)
