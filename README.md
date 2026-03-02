@@ -95,10 +95,11 @@ Primary Key: ID (`TradeDate` and `Symbol` are treated as unique for the dbo.Inse
 - Visualization layer does not currently support stable real-time streaming updates due to `mplfinance` handling of missing intraday intervals (NaN propagation during redraw events).  
   → Future improvement: migrate to Plotly Dash or a front-end dashboard architecture to support live updates.
 - Automation/CI-CD not yet implemented.
-- Only the past 7 trading days are gathered as a maximum, due to yfinance being limited with 1m intervals of data over the last 7 trading days.
+- Only the past 7 trading days are gathered as a maximum, due to yfinance being limited with 1m intervals of data over the last 7 trading days. This is also why there is currently no functionality to view 'historical' data.
 - Figure 1 is missing the same grey dashed line, attempting to create one caused the data to be offset. From what I could find, mplfinance maps the dates to integer positions and I couldn't find a way to map it to the correct position, causing a chasm between the data and the x-axis labels.
 - Ideally, multiple graphs could be selected by the user (similarly to yahoo's stocks website) so they could observe longer-term trends.
 - Timestamps are currently naive but labeled as Eastern Time (ET) to reflect NYSE trading hours. With more time, I would make them timezone-aware using 'pytz' or 'zoneinfo' to handle daylight saving and multi-timezone display correctly
+- Currently, there is no way to convert the data into different currencies than USD (the default from yfinance) and GBP (which is currently how the python code displays the data). If I were to implement this, I would have a separate SQL table of StockDB.dbo.Currency_Conversions. This table would store the most recent exchange rate of various currencies at said date+time. Then, the user could choose what currency the data would be displayed in, and the y-axis lables for the currency symbol would automatically be adjusted for the chosen currency.
 - Add logging, error handling, and retry logic for network/API issues.
   
 
