@@ -30,7 +30,7 @@ def fetch_apple_data(days=7, interval="1m"):
     df.index = df.index.tz_localize(None)
     return df.sort_index()
 
-# ------------------ USD → GBP ------------------ REMOVE OR COMMENT OUT THIS FUNCTION IF YOU WANT TO KEEP PRICES IN USD. IF HISTORICAL DATA IS IN GBP, THEN KEEP THIS FUNCTION.
+# ------------------ USD → GBP ------------------ REMOVE OR COMMENT OUT THIS FUNCTION IF YOU WANT TO KEEP PRICES IN USD.
 # Note: The conversion uses the latest GBP/USD exchange rate, so the prices will reflect the most recent rate at the time you run the script. Currently, there is no historical exchange rate conversion for each row.
 def convert_usd_to_gbp(df):
     fx = yf.Ticker("GBPUSD=X").history(period="7d")
@@ -325,4 +325,5 @@ if __name__ == "__main__": # -- This ensures the code only runs when this script
 
     print("Plotting colored line over last 7 days...")
     plot_colored_line_7d_trading_labels(df_7d, interval_minutes=5)
+
 
